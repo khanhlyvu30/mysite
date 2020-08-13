@@ -1,11 +1,18 @@
-from django.shortcuts import get_object_or_404
-from django.views import generic
 from django.shortcuts import render
-
-# Create your views here.
+from django.views import generic
+from django.shortcuts import get_object_or_404
 from catalog.models import Book, Author, BookInstance, Genre
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-
+from django.contrib.auth.decorators import permission_required
+from django.contrib.auth.mixins import PermissionRequiredMixin
+from django.contrib.admin.views.decorators import staff_member_required
+from catalog.forms import RenewBookForm
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+import datetime
+from django.views.generic.edit import CreateView, UpdateView, DeleteView
+from django.urls import reverse_lazy
 
 def index(request):
     """View function for home page of site."""
@@ -57,13 +64,7 @@ class BookDetailView(generic.DetailView):
 
 class AuthorListView(generic.ListView):
     model = Author
-    # your own name for the list as a template variable
-    context_object_name = 'author_list'
-    queryset = Author.objects.filter(first_name__icontains='')[
-        :5]  # Get 5 authors
-    # Specify your own template name/locatio
-    template_name = 'author/my_arbitrary_template_name_list.html'
-
+    paginate_by = 10
 
 class AuthorDetailView(generic.DetailView):
     model = Author
@@ -92,21 +93,10 @@ class AllLoanedBooksListView(LoginRequiredMixin, generic.ListView):
     def get_queryset(self):
         return BookInstance.objects.filter(status__exact='o').order_by('due_back')
 
-
-import datetime
-
-from django.contrib.auth.decorators import permission_required
-from django.shortcuts import get_object_or_404
-from django.http import HttpResponseRedirect
-from django.urls import reverse
-
-from catalog.forms import RenewBookForm
-
 @permission_required('catalog.can_mark_returned')
 def renew_book_librarian(request, pk):
-    """View function for renewing a specific BookInstance by librarian."""
     book_instance = get_object_or_404(BookInstance, pk=pk)
-
+    
     # If this is a POST request then process the Form data
     if request.method == 'POST':
 
@@ -134,17 +124,12 @@ def renew_book_librarian(request, pk):
 
     return render(request, 'catalog/book_renew_librarian.html', context)
 
-from django.views.generic.edit import CreateView, UpdateView, DeleteView
-from django.urls import reverse_lazy
-
-from catalog.models import Author
-
-from catalog.models import Book
-
-class AuthorCreate(CreateView):
+class AuthorCreate(PermissionRequiredMixin,CreateView):
     model = Author
     fields = '__all__'
     initial = {'date_of_death': '05/01/2018'}
+    permission_required = 'catalog.can_mark_returned'
+
 
 class AuthorUpdate(UpdateView):
     model = Author
